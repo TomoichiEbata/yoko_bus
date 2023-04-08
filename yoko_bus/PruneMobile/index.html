@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<title>PruneMobile</title>
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.0.0-beta.2.rc.2/leaflet.css" />
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.0.0-beta.2.rc.2/leaflet.js"></script>
+
+	<script src="scripts/PruneCluster.js"></script>
+	<link rel="stylesheet" href="styles/style.css" />
+	<script src="scripts/onload.js"></script>
+
+	<!-- 江端様コメント -->
+	<!-- goのテンプレートのローカルって、どこになるんだろう？
+		→ 解決した https://wp.kobore.net/%e6%b1%9f%e7%ab%af%e3%81%95%e3%82%93%e3%81%ae%e6%8a%80%e8%a1%93%e3%83%a1%e3%83%a2/post-5280/-->
+</head>
+
+<body onload=onload()>
+	<form>
+		<button id="open">open</button>
+		<button id="close">close</button>
+		<button id="send">send</button>
+	</form>
+
+	<div id="map"></div>
+</body>
+
+</html>

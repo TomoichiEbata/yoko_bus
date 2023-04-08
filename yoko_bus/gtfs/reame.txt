@@ -1,0 +1,6 @@
+■gtfs_cheker.go
+横浜市のGTFSサーバとの接続確認用プログラム
+
+■gtfs_hub.go 
+横浜市のGTFSサーバの情報をPruneMobileで表示するプログラム
+
