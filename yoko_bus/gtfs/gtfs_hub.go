@@ -87,7 +87,7 @@ func main() {
 
 	for {
 		client := &http.Client{}
-		req, err := http.NewRequest("GET", "https://api.odpt.org/api/v4/gtfs/realtime/YokohamaMunicipalBus_vehicle?acl:consumerKey=f4954c3814b207512d8fe4bf10f79f0dc44050f1654f5781dc94c4991a574bf3", nil)
+		req, err := http.NewRequest("GET", "https://api.odpt.org/api/v4/gtfs/realtime/YokohamaMunicipalBus_vehicle?acl:consumerKey=f4954c3814b207512d8fe4bf10f79f0dc44050f1654f5781dc94c4991a574bf4", nil)
 		if err != nil {
 			log.Fatal(err)
 		}
