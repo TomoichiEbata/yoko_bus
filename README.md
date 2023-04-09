@@ -16,13 +16,18 @@ URL: https://api.odpt.org/api/v4/gtfs/realtime/YokohamaMunicipalBus_vehicle?acl:
 を使って、バス関連のリアルタイム情報を取得して、地図上にバスの位置を表示するプログラムです(自分用)
 
 [発行されたアクセストークン/YOUR_ACCESS_TOKEN]は、自分で取得する必要があります。
-(プログラム中のトークンや暗号鍵はダミーです(江端独自の可換処理済み>自分)
+(プログラム中のトークンや暗号鍵はダミーです(江端独自の可換処理済み>忘れるな、自分)
 
 
 # 現状
-Amazon Lightsail上で動いています。
+Amazon Lightsail上で、実験的に動かしています。
+
+https://c-anemone.tech:8080/
+
+![](2023-04-09-13-17-50.png)
 
 
 # 参考メモ
 「Protocol Buffersって何？ 」から、「公共交通オープンデータ」を攻略する
+
 https://wp.kobore.net/江端さんの技術メモ/post-9594/
