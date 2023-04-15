@@ -20,6 +20,22 @@ URL: https://api.odpt.org/api/v4/gtfs/realtime/YokohamaMunicipalBus_vehicle?acl:
 [発行されたアクセストークン/YOUR_ACCESS_TOKEN]は、自分で取得する必要があります。
 (プログラム中のトークンや暗号鍵はダミーです(江端独自の可換処理済み>忘れるな、自分)
 
+# 動かし方
+Amazon Lightsailを2つ立ち上げる。
+
+1つ目のコマンド画面で以下を行う。
+```
+cd yoko_bus/PruneMobile
+go run server.go
+```
+
+2つ目のコマンド画面で以下を行う。
+cd yoko_bus/gtfs
+go run gtfs_hub.go
+
+ブラウザを立ち上げる
+https://c-anemone.tech:8080/
+
 
 # 現状
 Amazon Lightsail上で、実験的に動かしています。
