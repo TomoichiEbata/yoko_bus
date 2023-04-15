@@ -24,6 +24,20 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var clients = make(map[*websocket.Conn]bool) // 接続されるクライアント
+
+type key struct {
+	*websocket.Conn
+	id  int
+	att string
+}
+
+// 配列宣言
+var m1 = make(map[key]int) // このm1は、mmapと異なるクライアント(Webブラウザ単位のMap)
+
+// Ebata: m1保護用のミューテックス
+var m1Mutex sync.RWMutex
+
 // ChartData
 type ChartData struct {
 	UserCnt int `json:"user_cnt"`
@@ -34,6 +48,7 @@ type ChartData struct {
 //var addr = flag.String("addr", "localhost:8080", "http service address") // テスト
 //var addr = flag.String("addr", "192.168.0.8:8080", "http service address") // テスト
 var addr = flag.String("addr", ":8080", "http service address") // テスト
+
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -54,7 +69,7 @@ var rwMutex sync.Mutex
 // 2次元配列: 変数名は暫定。元々はmmと呼称。
 var mmap = map[int]routing.LocMessage{}
 
-func echo2(w http.ResponseWriter, r *http.Request) { // 下からの受けつけ
+func echo2(w http.ResponseWriter, r *http.Request) { // 下からの受けつけ(e.g. Simulator/Hub)
 	webConn, err := upgrader.Upgrade(w, r, nil) // cはサーバのコネクション
 	if err != nil {
 		log.Print("upgrade:", err)
@@ -97,10 +112,10 @@ func pub() {
 		defer redisConn.Close()
 	*/
 
-	for {
+	for { // 番号の対応付け直しを行っている
 
 		//mutex.Lock()        // Ebata:chan2_1を守るミューテックス
-		locMsg := <-chan2_1 // echo2 -> here
+		locMsg := <-chan2_1 // echo2(下) -> here
 		if locMsg.ID == -1 {
 			locMsg.ID = serialId
 			serialId += 1 // 表示マーカー区別用の通番のインクリメント
@@ -130,8 +145,8 @@ func pub() {
 
 		//mutex.Lock() // Ebata:chan2_1を守るミューテックス
 
-		chan2_1 <- locMsg // here -> echo2
-		chan2_2 <- locMsg // here -> echo
+		chan2_1 <- locMsg // here -> echo2(下)
+		chan2_2 <- locMsg // here -> echo(上)
 
 		/*
 			jsonLocMsg, _ := json.Marshal(locMsg)
@@ -150,14 +165,19 @@ func pub() {
 	}
 }
 
-// UI側とのやり取り
-func echo(w http.ResponseWriter, r *http.Request) {
+// UI側(上)とのやり取り
+func echo(w http.ResponseWriter, r *http.Request) { // JavaScriptとの通信
 	webConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("websocket connection err:", err)
 		return
 	}
 	defer webConn.Close()
+
+	// クライアントを新しく登録(だけ)
+	m1Mutex.Lock()
+	clients[webConn] = true
+	m1Mutex.Unlock()
 
 	/*
 		// redisサーバとの接続(subscriber)
@@ -168,16 +188,28 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		defer redisConn.Close()
 	*/
 
+	// クライアント単位のmapを作る
+
 	// mapの作成
 
 	// map処理を開始する
+	/*
+		type key struct {
+			id  int
+			att string
+		}
+	*/
+
+	/* この宣言はグローバルにしておく必要がある
 	type key struct {
+		wc  *websocket.Conn
 		id  int
 		att string
 	}
 
 	// 配列宣言
-	m1 := make(map[key]int)
+	m1 := make(map[key]int) // このm1は、mmapと異なるクライアント(Webブラウザ単位のMap)
+	*/
 
 	/*
 		redisPubSubConn := redis.PubSubConn{Conn: redisConn}
@@ -188,77 +220,123 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		redisPubSubConn.Subscribe("channel_1")
 		defer redisPubSubConn.Unsubscribe("channel_1")
 	*/
-
 	for {
+		fmt.Print(time.Now())
+		fmt.Print(" 223 ")
+		fmt.Println(clients)
+
 		locMsg := new(routing.LocMessage)
 		locMsg2 := new(routing.LocMessage)
 
 		*locMsg = <-chan2_2
 
-		// 変数を使って、キーの存在を確認する
-		value, ok := m1[key{locMsg.ID, locMsg.TYPE}]
+		var delete_client *websocket.Conn
 
-		//// ebata:fmt.Println("0:value:", value, "isThere:", ok, "locMsg.ID:", locMsg.ID, "locMsg.TYPE", locMsg.TYPE)
+		for client := range clients { // 全部のクライアントのサーチ
 
-		/////0423 if math.Abs(locMsg.Lat) > 90.0 || math.Abs(locMsg.Lng) > 180.0 { // ありえない座標が投入されたら
-		if ok && (math.Abs(locMsg.Lat) > 90.0 || math.Abs(locMsg.Lng) > 180.0) { // レコードが存在して、ありえない座標が投入されたら
-			fmt.Println("enter 1")
+			delete_client = nil
 
-			tmpId := locMsg.ID /// 0423
-			locMsg.ID = value  // mapから見つけた値を使って、
+			fmt.Println("231 ")
+			// 変数を使って、キーの存在を確認する
+			m1Mutex.Lock()
+			value, ok := m1[key{client, locMsg.ID, locMsg.TYPE}]
+			m1Mutex.Unlock()
+			fmt.Println("236")
+			/////0423 if math.Abs(locMsg.Lat) > 90.0 || math.Abs(locMsg.Lng) > 180.0 { // ありえない座標が投入されたら
+			if ok && (math.Abs(locMsg.Lat) > 90.0 || math.Abs(locMsg.Lng) > 180.0) { // レコードが存在して、ありえない座標が投入されたら
+				fmt.Println("enter 1")
+				fmt.Println("240")
+				tmpId := locMsg.ID /// 0423
+				locMsg.ID = value  // mapから見つけた値を使って、
 
-			fmt.Println("1:locMsg:", locMsg)
+				fmt.Println("1:locMsg:", locMsg)
 
-			rwMutex.Lock()             ////Ebata
-			webConn.WriteJSON(&locMsg) // 送って
-			webConn.ReadJSON(&locMsg2) // 戻して
-			rwMutex.Unlock()           ////Ebata
+				rwMutex.Lock() ////Ebata
 
-			fmt.Println("1:locMsg2:", locMsg2)
+				err = client.WriteJSON(&locMsg) // 送って
+				if err != nil {
+					delete_client = client
 
-			delete(m1, key{tmpId, locMsg.TYPE}) // レコードを削除して終了する 0423
+				}
+				err = client.ReadJSON(&locMsg2) // 戻して
+				if err != nil {
+					delete_client = client
+				}
 
-		} else if !ok { // もしレコードが存在しなければ(新しいIDであれば)
-			fmt.Println("enter 2")
+				rwMutex.Unlock() ////Ebata
 
-			tmpId := locMsg.ID
-			locMsg.ID = -1 // 空番号 これでJavaScriptの方に
+				m1Mutex.Lock()
+				delete(m1, key{delete_client, tmpId, locMsg.TYPE}) // レコードを削除して終了する 0423
+				m1Mutex.Unlock()
 
-			fmt.Println("2:locMsg:", locMsg)
+				fmt.Println("1:locMsg2:", locMsg2)
 
-			rwMutex.Lock()             ////Ebata
-			webConn.WriteJSON(&locMsg) // 送って
-			webConn.ReadJSON(&locMsg2) // 戻してもらって
-			rwMutex.Unlock()           ////Ebata
+			} else if !ok { // もしレコードが存在しなければ(新しいIDであれば)
+				fmt.Println("enter 2")
 
-			fmt.Println("2:locMsg2:", locMsg2)
+				tmpId := locMsg.ID
+				locMsg.ID = -1 // 空番号 これでJavaScriptの方に
 
-			pm_id := locMsg2.ID // JavaScriptから与えられたIDで
-			//fmt.Println("id:", id, ", pm_id:", pm_id)
+				fmt.Println("2:locMsg:", locMsg)
 
-			//time.Sleep(time.Second * 1)
-			time.Sleep(time.Millisecond * 10)
+				rwMutex.Lock() ////Ebata
 
-			m1[key{tmpId, locMsg.TYPE}] = pm_id // レコードを追加する
+				err = client.WriteJSON(&locMsg) // 送って
+				if err != nil {
+					delete_client = client
+				}
+				err = client.ReadJSON(&locMsg2) // 戻してもらって
+				if err != nil {
+					delete_client = client
+				}
 
-		} else { //レコードが存在すれば、その値を使ってアイコンを動かす
+				rwMutex.Unlock() ////Ebata
 
-			//fmt.Println("enter 3")
+				fmt.Println("2:locMsg2:", locMsg2)
 
-			locMsg.ID = value // mapから見つけた値を使って、
-			// このバグの原因はJavaScript側のsendとrecvのタイミングのズレだった
-			//fmt.Println("3:locMsg:", locMsg)
+				pm_id := locMsg2.ID // JavaScriptから与えられたIDで
+				//fmt.Println("id:", id, ", pm_id:", pm_id)
 
-			rwMutex.Lock()             ////Ebata
-			webConn.WriteJSON(&locMsg) // アイコンを動かす
-			webConn.ReadJSON(&locMsg2)
-			rwMutex.Unlock() ////Ebata
+				//time.Sleep(time.Second * 1)
+				time.Sleep(time.Millisecond * 10)
 
-			//fmt.Println("3:locMsg2:", locMsg2)
+				m1Mutex.Lock()
+				m1[key{client, tmpId, locMsg.TYPE}] = pm_id // レコードを追加する
+				m1Mutex.Unlock()
+
+			} else { //レコードが存在すれば、その値を使ってアイコンを動かす
+
+				//fmt.Println("enter 3")
+
+				locMsg.ID = value // mapから見つけた値を使って、
+				// このバグの原因はJavaScript側のsendとrecvのタイミングのズレだった
+				//fmt.Println("3:locMsg:", locMsg)
+
+				rwMutex.Lock()                  ////Ebata
+				err = client.WriteJSON(&locMsg) // アイコンを動かす
+				if err != nil {
+					delete_client = client
+				}
+				client.ReadJSON(&locMsg2)
+				if err != nil {
+					delete_client = client
+				}
+				rwMutex.Unlock() ////Ebata
+				//fmt.Println("3:locMsg2:", locMsg2)
+			}
 
 		}
 
+		/// ループを出てからリストから削除する
+
+		if delete_client != nil {
+			fmt.Println("delete_client")
+			delete_client.Close()
+			delete(clients, delete_client)
+		}
+
 	}
+
 }
 
 func echo3(w http.ResponseWriter, r *http.Request) {
